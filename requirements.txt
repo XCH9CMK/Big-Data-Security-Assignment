@@ -1,0 +1,28 @@
+# 语音降噪与增强实验依赖包
+
+# 核心音频处理库
+librosa>=0.10.0
+soundfile>=0.12.1
+numpy>=1.24.0
+scipy>=1.10.0
+
+# 深度学习框架
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# 语音评估指标
+pysptk>=0.1.20
+fastdtw>=0.3.4
+openai-whisper>=20230314
+jiwer>=3.0.0
+
+# 可选的评估指标库
+# pesq>=0.0.4  # PESQ评估（可选）
+# pystoi>=0.3.3  # STOI评估（可选）
+
+# 数据处理
+pandas>=2.0.0
+tqdm>=4.65.0
+
+# 其他工具
+requests>=2.31.0
