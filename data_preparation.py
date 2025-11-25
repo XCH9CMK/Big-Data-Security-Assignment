@@ -18,12 +18,23 @@ class DataPreparation:
     def __init__(self, data_root="./data"):
         self.data_root = Path(data_root)
         self.vctk_path = self.data_root / "VCTK-Corpus"
-        self.noisy_path = self.data_root / "noisy"
-        self.clean_path = self.data_root / "clean"
         
-        # 创建必要的目录
-        self.noisy_path.mkdir(parents=True, exist_ok=True)
-        self.clean_path.mkdir(parents=True, exist_ok=True)
+        # 检查VCTK数据集是否存在
+        if (self.vctk_path / "clean").exists() and (self.vctk_path / "noisy").exists():
+            # 使用VCTK数据集路径
+            self.noisy_path = self.vctk_path / "noisy"
+            self.clean_path = self.vctk_path / "clean"
+            self.txt_path = self.vctk_path / "txt"
+        else:
+            # 使用生成数据路径
+            self.noisy_path = self.data_root / "noisy"
+            self.clean_path = self.data_root / "clean"
+            self.txt_path = None
+        
+        # 创建必要的目录（仅在使用生成数据时）
+        if not (self.vctk_path / "clean").exists():
+            self.noisy_path.mkdir(parents=True, exist_ok=True)
+            self.clean_path.mkdir(parents=True, exist_ok=True)
     
     def generate_noise(self, duration, sr, noise_type='white'):
         """

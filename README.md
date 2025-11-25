@@ -72,8 +72,45 @@ pip install pesq pystoi
 
 ### 快速开始 - 运行完整实验
 ```bash
+# 标准实验 (不支持暂停)
 python main.py --num_samples 30 --max_eval 20
+
+# 快速功能验证
+python quick_test.py
 ```
+
+### 🆕 支持暂停/恢复的长时间实验
+
+#### 运行支持暂停的实验
+```bash
+# 中等规模实验 (每50个样本暂停询问)
+python pausable_experiment.py --num_samples 100 --batch_size 50
+
+# 大规模实验 (使用全部824个样本)
+python pausable_experiment.py --num_samples 824 --batch_size 50
+
+# 自定义暂停间隔 (每100个样本暂停)
+python pausable_experiment.py --num_samples 500 --batch_size 100
+```
+
+#### 暂停后的操作
+```bash
+# 恢复暂停的实验
+python resume_experiment.py
+
+# 查看当前实验状态
+python view_status.py
+
+# 自动恢复 (不询问确认)
+python resume_experiment.py --auto
+```
+
+#### 暂停/恢复功能特点
+- ✅ **智能暂停**: 每处理N个样本自动暂停询问
+- ✅ **进度保存**: 实验进度自动保存到JSON文件
+- ✅ **断点恢复**: 可以从任意暂停点恢复实验
+- ✅ **状态查看**: 随时查看当前实验进度
+- ✅ **异常保护**: 意外中断也能保存进度
 
 ### 分步执行
 
