@@ -12,6 +12,19 @@ from pathlib import Path
 import librosa
 import librosa.display
 
+# 导入配置
+try:
+    from .config import VISUALIZATION_CONFIG, STFT_CONFIG
+    from .file_utils import get_sample_rate
+    DEFAULT_SAMPLE_RATE = get_sample_rate()
+    DEFAULT_N_FFT = STFT_CONFIG['n_fft']
+    DEFAULT_HOP_LENGTH = STFT_CONFIG['hop_length']
+except ImportError:
+    DEFAULT_SAMPLE_RATE = 16000
+    DEFAULT_N_FFT = 512
+    DEFAULT_HOP_LENGTH = 128
+    VISUALIZATION_CONFIG = {'figsize': (12, 8), 'dpi': 100, 'save_plots': True, 'plot_format': 'png'}
+
 
 class ResultVisualizer:
     """结果可视化类"""
@@ -34,10 +47,10 @@ class ResultVisualizer:
             denoised_file: 降噪后音频文件
             save_name: 保存文件名
         """
-        # 加载音频
-        clean, sr = librosa.load(clean_file, sr=16000)
-        noisy, _ = librosa.load(noisy_file, sr=16000)
-        denoised, _ = librosa.load(denoised_file, sr=16000)
+        # 加载音频（使用配置的采样率）
+        clean, sr = librosa.load(clean_file, sr=DEFAULT_SAMPLE_RATE)
+        noisy, _ = librosa.load(noisy_file, sr=DEFAULT_SAMPLE_RATE)
+        denoised, _ = librosa.load(denoised_file, sr=DEFAULT_SAMPLE_RATE)
         
         # 确保长度一致
         min_len = min(len(clean), len(noisy), len(denoised))
@@ -85,14 +98,14 @@ class ResultVisualizer:
             denoised_file: 降噪后音频文件
             save_name: 保存文件名
         """
-        # 加载音频
-        clean, sr = librosa.load(clean_file, sr=16000)
-        noisy, _ = librosa.load(noisy_file, sr=16000)
-        denoised, _ = librosa.load(denoised_file, sr=16000)
+        # 加载音频（使用配置的采样率）
+        clean, sr = librosa.load(clean_file, sr=DEFAULT_SAMPLE_RATE)
+        noisy, _ = librosa.load(noisy_file, sr=DEFAULT_SAMPLE_RATE)
+        denoised, _ = librosa.load(denoised_file, sr=DEFAULT_SAMPLE_RATE)
         
-        # 计算频谱图
-        n_fft = 512
-        hop_length = 128
+        # 计算频谱图（使用配置的STFT参数）
+        n_fft = DEFAULT_N_FFT
+        hop_length = DEFAULT_HOP_LENGTH
         
         D_clean = librosa.stft(clean, n_fft=n_fft, hop_length=hop_length)
         D_noisy = librosa.stft(noisy, n_fft=n_fft, hop_length=hop_length)

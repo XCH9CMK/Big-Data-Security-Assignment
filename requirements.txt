@@ -24,5 +24,8 @@ jiwer>=3.0.0
 pandas>=2.0.0
 tqdm>=4.65.0
 
+# 可视化
+matplotlib>=3.7.0
+
 # 其他工具
 requests>=2.31.0

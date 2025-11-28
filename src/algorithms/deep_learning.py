@@ -1,154 +1,25 @@
 """
-语音降噪算法模块
-实现多种降噪算法：谱减法、维纳滤波、深度学习方法等
+深度学习降噪算法
+基于U-Net架构的谱掩码预测
 """
 
 import numpy as np
 import librosa
-import soundfile as sf
-from scipy import signal
-from scipy.fftpack import fft, ifft
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from pathlib import Path
 
-
-class SpectralSubtraction:
-    """谱减法降噪"""
-    
-    def __init__(self, alpha=2.0, beta=0.01):
-        """
-        Args:
-            alpha: 过度减法因子
-            beta: 谱底限
-        """
-        self.alpha = alpha
-        self.beta = beta
-    
-    def denoise(self, noisy_audio, sr=16000, noise_profile_duration=0.5):
-        """
-        使用谱减法进行降噪
-        
-        Args:
-            noisy_audio: 含噪音频
-            sr: 采样率
-            noise_profile_duration: 噪声特征估计时长（秒）
-        
-        Returns:
-            denoised: 降噪后的音频
-        """
-        # STFT参数
-        n_fft = 512
-        hop_length = 128
-        
-        # 短时傅里叶变换
-        stft = librosa.stft(noisy_audio, n_fft=n_fft, hop_length=hop_length)
-        magnitude = np.abs(stft)
-        phase = np.angle(stft)
-        
-        # 估计噪声频谱（使用前段作为噪声样本）
-        noise_frames = int(noise_profile_duration * sr / hop_length)
-        noise_profile = np.mean(magnitude[:, :noise_frames], axis=1, keepdims=True)
-        
-        # 谱减法
-        magnitude_denoised = magnitude - self.alpha * noise_profile
-        
-        # 应用谱底限
-        magnitude_denoised = np.maximum(magnitude_denoised, self.beta * magnitude)
-        
-        # 重构信号
-        stft_denoised = magnitude_denoised * np.exp(1j * phase)
-        denoised = librosa.istft(stft_denoised, hop_length=hop_length)
-        
-        return denoised
-
-
-class WienerFilter:
-    """维纳滤波降噪"""
-    
-    def __init__(self):
-        pass
-    
-    def denoise(self, noisy_audio, sr=16000, noise_profile_duration=0.5):
-        """
-        使用维纳滤波进行降噪
-        
-        Args:
-            noisy_audio: 含噪音频
-            sr: 采样率
-            noise_profile_duration: 噪声特征估计时长（秒）
-        
-        Returns:
-            denoised: 降噪后的音频
-        """
-        # STFT参数
-        n_fft = 512
-        hop_length = 128
-        
-        # 短时傅里叶变换
-        stft = librosa.stft(noisy_audio, n_fft=n_fft, hop_length=hop_length)
-        magnitude = np.abs(stft)
-        phase = np.angle(stft)
-        power = magnitude ** 2
-        
-        # 估计噪声功率谱
-        noise_frames = int(noise_profile_duration * sr / hop_length)
-        noise_power = np.mean(power[:, :noise_frames], axis=1, keepdims=True)
-        
-        # 维纳滤波
-        # H = S / (S + N), 其中 S 是信号功率, N 是噪声功率
-        signal_power = np.maximum(power - noise_power, 0)
-        wiener_gain = signal_power / (signal_power + noise_power + 1e-8)
-        
-        # 应用滤波器
-        magnitude_denoised = magnitude * wiener_gain
-        
-        # 重构信号
-        stft_denoised = magnitude_denoised * np.exp(1j * phase)
-        denoised = librosa.istft(stft_denoised, hop_length=hop_length)
-        
-        return denoised
-
-
-class BandPassFilter:
-    """带通滤波器（用于语音频段）"""
-    
-    def __init__(self, lowcut=80, highcut=8000):
-        """
-        Args:
-            lowcut: 低截止频率（Hz）
-            highcut: 高截止频率（Hz）
-        """
-        self.lowcut = lowcut
-        self.highcut = highcut
-    
-    def denoise(self, noisy_audio, sr=16000):
-        """
-        使用带通滤波进行降噪
-        
-        Args:
-            noisy_audio: 含噪音频
-            sr: 采样率
-        
-        Returns:
-            denoised: 降噪后的音频
-        """
-        # 设计巴特沃斯带通滤波器
-        nyquist = sr / 2
-        low = self.lowcut / nyquist
-        high = self.highcut / nyquist
-        
-        # 确保临界频率在有效范围内 (0, 1)
-        low = max(0.001, min(low, 0.99))
-        high = max(low + 0.001, min(high, 0.999))
-        
-        b, a = signal.butter(5, [low, high], btype='band')
-        
-        # 应用滤波器
-        denoised = signal.filtfilt(b, a, noisy_audio)
-        
-        return denoised
+# 尝试导入配置，如果失败则使用默认值
+try:
+    from ..utils.config import STFT_CONFIG, DATA_CONFIG
+    DEFAULT_SAMPLE_RATE = DATA_CONFIG['sample_rate']
+    DEFAULT_N_FFT = STFT_CONFIG['n_fft']
+    DEFAULT_HOP_LENGTH = STFT_CONFIG['hop_length']
+except ImportError:
+    DEFAULT_SAMPLE_RATE = 16000
+    DEFAULT_N_FFT = 512
+    DEFAULT_HOP_LENGTH = 128
 
 
 class SimpleDeepDenoiser(nn.Module):
@@ -220,15 +91,16 @@ class DeepLearningDenoiser:
     
     def __init__(self, model_path=None):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.n_fft = 512
-        self.hop_length = 128
+        # 使用配置的STFT参数
+        self.n_fft = DEFAULT_N_FFT
+        self.hop_length = DEFAULT_HOP_LENGTH
         self.model = SimpleDeepDenoiser(n_fft=self.n_fft).to(self.device)
         
         if model_path and Path(model_path).exists():
             self.model.load_state_dict(torch.load(model_path, map_location=self.device))
             print(f"模型已从 {model_path} 加载")
     
-    def train(self, clean_files, noisy_files, epochs=50, batch_size=32, save_path="model_weights.pth"):
+    def train(self, clean_files, noisy_files, epochs=50, batch_size=32, learning_rate=0.001, save_path="model_weights.pth"):
         """
         训练降噪模型
         
@@ -237,13 +109,20 @@ class DeepLearningDenoiser:
             noisy_files: 含噪音频文件列表
             epochs: 训练轮数
             batch_size: 批次大小
+            learning_rate: 学习率
             save_path: 模型保存路径
         """
         print(f"开始训练模型 (设备: {self.device})...")
         
         self.model.train()
-        optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+        # 添加学习率调度器，每20个epoch降低学习率
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
         criterion = nn.MSELoss()
+        
+        best_loss = float('inf')
+        patience = 10
+        patience_counter = 0
         
         for epoch in range(epochs):
             total_loss = 0
@@ -260,9 +139,9 @@ class DeepLearningDenoiser:
                 
                 for idx in batch_indices:
                     try:
-                        # 加载音频
-                        clean_audio, _ = librosa.load(clean_files[idx], sr=16000)
-                        noisy_audio, _ = librosa.load(noisy_files[idx], sr=16000)
+                        # 加载音频（使用配置的采样率）
+                        clean_audio, _ = librosa.load(clean_files[idx], sr=DEFAULT_SAMPLE_RATE)
+                        noisy_audio, _ = librosa.load(noisy_files[idx], sr=DEFAULT_SAMPLE_RATE)
                         
                         # 确保长度一致
                         min_len = min(len(clean_audio), len(noisy_audio))
@@ -325,23 +204,44 @@ class DeepLearningDenoiser:
                 num_batches += 1
             
             avg_loss = total_loss / max(num_batches, 1)
-            print(f"Epoch [{epoch+1}/{epochs}], Loss: {avg_loss:.6f}")
+            
+            # 早停机制和最佳模型保存
+            if avg_loss < best_loss:
+                best_loss = avg_loss
+                patience_counter = 0
+                torch.save(self.model.state_dict(), save_path)
+            else:
+                patience_counter += 1
+            
+            scheduler.step()
+            current_lr = scheduler.get_last_lr()[0]
+            
+            if (epoch + 1) % 5 == 0 or epoch == 0:
+                print(f"Epoch [{epoch+1}/{epochs}], Loss: {avg_loss:.6f}, LR: {current_lr:.6f}")
+            
+            if patience_counter >= patience:
+                print(f"早停触发：损失在 {patience} 个epoch内未改善")
+                print(f"最佳损失: {best_loss:.6f}")
+                break
         
-        # 保存模型
-        torch.save(self.model.state_dict(), save_path)
+        if patience_counter < patience:
+            torch.save(self.model.state_dict(), save_path)
+        
         print(f"模型已保存到 {save_path}")
     
-    def denoise(self, noisy_audio, sr=16000):
+    def denoise(self, noisy_audio, sr=None):
         """
         使用深度学习模型进行降噪
         
         Args:
             noisy_audio: 含噪音频
-            sr: 采样率
+            sr: 采样率（如果为None，使用配置的默认值）
         
         Returns:
             denoised: 降噪后的音频
         """
+        if sr is None:
+            sr = DEFAULT_SAMPLE_RATE
         self.model.eval()
         
         with torch.no_grad():
@@ -372,38 +272,3 @@ class DeepLearningDenoiser:
         
         return denoised
 
-
-class HybridDenoiser:
-    """混合降噪器（结合多种方法）"""
-    
-    def __init__(self):
-        self.spectral_sub = SpectralSubtraction(alpha=2.0, beta=0.01)
-        self.wiener = WienerFilter()
-        self.bandpass = BandPassFilter(lowcut=80, highcut=8000)
-    
-    def denoise(self, noisy_audio, sr=16000):
-        """
-        使用混合方法进行降噪
-        
-        Args:
-            noisy_audio: 含噪音频
-            sr: 采样率
-        
-        Returns:
-            denoised: 降噪后的音频
-        """
-        # 步骤1: 带通滤波（去除明显的频率外噪声）
-        audio = self.bandpass.denoise(noisy_audio, sr)
-        
-        # 步骤2: 谱减法
-        audio = self.spectral_sub.denoise(audio, sr)
-        
-        # 步骤3: 维纳滤波（精细降噪）
-        audio = self.wiener.denoise(audio, sr)
-        
-        return audio
-
-
-if __name__ == "__main__":
-    # 测试降噪算法
-    print("降噪算法模块已加载")

@@ -13,6 +13,19 @@ from tqdm import tqdm
 import zipfile
 import random
 
+# 导入配置和工具函数
+try:
+    from ..utils.config import DATA_CONFIG, NOISE_CONFIG
+    from ..utils.file_utils import get_sample_rate, get_clean_filename, get_noisy_filename
+    DEFAULT_SAMPLE_RATE = get_sample_rate()
+except ImportError:
+    DEFAULT_SAMPLE_RATE = 16000
+    NOISE_CONFIG = {'types': ['white', 'pink', 'traffic', 'mechanical', 'babble']}
+    def get_clean_filename(idx):
+        return f"clean_{idx:04d}.wav"
+    def get_noisy_filename(idx, noise_type, snr_db):
+        return f"noisy_{idx:04d}_{noise_type}_snr{snr_db:.1f}.wav"
+
 
 class DataPreparation:
     def __init__(self, data_root="./data"):
@@ -212,8 +225,8 @@ class DataPreparation:
         
         for idx, wav_file in enumerate(tqdm(selected_files, desc="处理音频文件")):
             try:
-                # 读取音频
-                audio, sr = librosa.load(wav_file, sr=16000)
+                # 读取音频（使用配置的采样率）
+                audio, sr = librosa.load(wav_file, sr=DEFAULT_SAMPLE_RATE)
                 
                 # 确保音频长度合理
                 if len(audio) < sr * 0.5:  # 至少0.5秒
@@ -228,8 +241,8 @@ class DataPreparation:
                         start_idx = random.randint(0, len(audio) - max_samples)
                         audio = audio[start_idx:start_idx + max_samples]
                 
-                # 保存干净音频
-                clean_file = self.clean_path / f"clean_{idx:04d}.wav"
+                # 保存干净音频（使用工具函数生成文件名）
+                clean_file = self.clean_path / get_clean_filename(idx)
                 sf.write(clean_file, audio, sr)
                 
                 # 添加不同类型的噪声
@@ -242,8 +255,8 @@ class DataPreparation:
                         room_size = random.choice(['small', 'medium', 'large'])
                         noisy_audio = self.add_reverb(noisy_audio, sr, room_size)
                     
-                    # 保存含噪音频
-                    noisy_file = self.noisy_path / f"noisy_{idx:04d}_{noise_type}_snr{snr_db:.1f}.wav"
+                    # 保存含噪音频（使用工具函数生成文件名）
+                    noisy_file = self.noisy_path / get_noisy_filename(idx, noise_type, snr_db)
                     sf.write(noisy_file, noisy_audio, sr)
             
             except Exception as e:
@@ -259,8 +272,8 @@ class DataPreparation:
         创建演示数据（当VCTK数据集不可用时）
         """
         print("生成演示音频数据...")
-        sr = 16000
-        noise_types = ['white', 'pink', 'traffic', 'mechanical', 'babble']
+        sr = DEFAULT_SAMPLE_RATE
+        noise_types = NOISE_CONFIG.get('types', ['white', 'pink', 'traffic', 'mechanical', 'babble'])
         
         for idx in tqdm(range(num_samples), desc="生成演示数据"):
             # 生成合成语音信号（正弦波组合模拟）
@@ -281,8 +294,8 @@ class DataPreparation:
             # 归一化
             audio = audio / (np.max(np.abs(audio)) + 1e-8) * 0.8
             
-            # 保存干净音频
-            clean_file = self.clean_path / f"clean_{idx:04d}.wav"
+            # 保存干净音频（使用工具函数生成文件名）
+            clean_file = self.clean_path / get_clean_filename(idx)
             sf.write(clean_file, audio, sr)
             
             # 为每种噪声类型创建样本
@@ -295,8 +308,8 @@ class DataPreparation:
                     room_size = random.choice(['small', 'medium', 'large'])
                     noisy_audio = self.add_reverb(noisy_audio, sr, room_size)
                 
-                # 保存含噪音频
-                noisy_file = self.noisy_path / f"noisy_{idx:04d}_{noise_type}_snr{snr_db:.1f}.wav"
+                # 保存含噪音频（使用工具函数生成文件名）
+                noisy_file = self.noisy_path / get_noisy_filename(idx, noise_type, snr_db)
                 sf.write(noisy_file, noisy_audio, sr)
         
         print(f"演示数据生成完成! 共 {num_samples} 个样本")
